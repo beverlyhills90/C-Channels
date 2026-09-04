@@ -1,54 +1,59 @@
-#include "channels.h"
-#include "mpsc/cmpsc.h"
+#include "test_main.h"
 #include <pthread.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
-typedef struct {
-    int thread_id;
-    t_sender *sender;
-    int rand_num;
-} WorkerArgs;
+void	*worker(void *arg)
+{
+	t_worker_args	*args;
 
-
-void *worker(void *arg){
-    WorkerArgs *worker = arg; 
-    srand(time(NULL));
-    usleep(worker->rand_num); 
-    send_data(worker->sender, (void *)&worker->thread_id);
-    return (NULL);
+	args = arg;
+	usleep(args->rand_num);
+	mpsc_send(args->sender, &args->thread_id);
+	mpsc_sender_drop(args->sender);
+	return (NULL);
 }
 
+static void	drain(t_mpsc *mpsc)
+{
+	t_chan_result	res;
 
-int main(void) {
-    t_mpscRes *test;
-    t_sender *sender_org;
-    t_reciver *reciver;
-    t_sender *tmp;
+	while (1)
+	{
+		res = mpsc_recv(mpsc->receiver);
+		if (res.status == CH_CLOSED)
+			break ;
+		printf("HI from : %i \n", *(int *)res.data);
+	}
+}
 
-    test = MPSCNew(5);
-    sender_org = test->sender;
-    reciver = test->reciver;
-    pthread_t threads[5];
+int	main(void)
+{
+	t_mpsc			*mpsc;
+	pthread_t		threads[5];
+	t_worker_args	*args;
+	int				i;
 
-    for (int i = 0; i < 5; i++){
-        WorkerArgs* args = malloc(sizeof(WorkerArgs));
-        int random_num = rand() % (100 - i + i) + i;
-        printf("Random number: %d\n", random_num);
-        tmp = clone_sender(sender_org);
-        args->sender = tmp;
-        args->thread_id = i;
-        args->rand_num = random_num;
-        pthread_create(&threads[i],NULL, worker,(void *)args);
-    }
-
-    while (1) {
-        int *rcived = reciv(reciver);
-        if (rcived == NULL){
-            continue;
-        }
-        printf("HI from : %i \n",*rcived);
-    }
-} 
+	srand(time(NULL));
+	mpsc = mpsc_new();
+	if (!mpsc)
+		return (1);
+	i = 0;
+	while (i < 5)
+	{
+		args = malloc(sizeof(t_worker_args));
+		args->sender = mpsc_sender_clone(mpsc->sender);
+		args->thread_id = i;
+		args->rand_num = rand() % 100 + i;
+		printf("Random number: %d\n", args->rand_num);
+		pthread_create(&threads[i], NULL, worker, args);
+		pthread_join(threads[i], NULL);
+		i++;
+	}
+	mpsc_sender_drop(mpsc->sender);
+	drain(mpsc);
+	mpsc_free(mpsc);
+	return (0);
+}

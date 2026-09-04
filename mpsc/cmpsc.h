@@ -1,39 +1,53 @@
 #ifndef CMPSC_H
 # define CMPSC_H
 
-
 # include "../helpers.h"
+# include <pthread.h>
+# include <stdlib.h>
 
-typedef struct s_sender t_sender;
-typedef struct s_reciver t_reciver;
+typedef struct s_sender		t_sender;
+typedef struct s_receiver	t_receiver;
 
-typedef struct s_chanNode {
-    void *data;
-    struct s_chanNode *next;
-} t_chanNode;
+typedef struct s_chan_node
+{
+	void				*data;
+	struct s_chan_node	*next;
+}	t_chan_node;
+
+typedef enum e_chan_status
+{
+	CH_OK,
+	CH_ERR,
+	CH_CLOSED
+}	t_chan_status;
+
+typedef struct s_chan_result
+{
+	t_chan_status	status;
+	void			*data;
+}	t_chan_result;
 
 typedef struct s_channel
 {
-    pthread_mutex_t mu;
-    pthread_cond_t state;
-    size_t RC;
-    t_chanNode *channelQ;
-    bool singleReciver;
-} t_channel;
+	pthread_mutex_t	mu;
+	pthread_cond_t	not_empty;
+	size_t			senders;
+	t_chan_node		*head;
+	t_chan_node		*tail;
+	bool			has_receiver;
+	bool			closed;
+}	t_channel;
 
+t_sender		*chan_sender_new(t_channel *channel);
+t_receiver		*chan_receiver_new(t_channel *channel);
+t_sender		*mpsc_sender_clone(t_sender *origin);
+void			mpsc_send(t_sender *sender, void *data);
+t_chan_result	mpsc_recv(t_receiver *receiver);
+void			mpsc_sender_drop(t_sender *sender);
 
-t_sender *create_sender(t_channel *channel);
-t_reciver *create_reciver(t_channel *channel);
-t_sender *clone_sender(t_sender *origin);
-
-void send_data(t_sender *sender,void *data);
-void *reciv(t_reciver *reciver);
-
-//Channel OPS
-t_channel *create_channel(size_t buf_size);
-void createBufChan (t_channel *chan,size_t n);
-void *clearChun(t_channel *channel);
-t_chanNode *pop(t_channel *chan);
-void pushToChan(t_channel *chan,void *data);
+t_channel		*chan_new(void);
+void			chan_close(t_channel *chan);
+void			chan_destroy(t_channel *chan);
+void			receiver_free(t_receiver *receiver);
 
 #endif

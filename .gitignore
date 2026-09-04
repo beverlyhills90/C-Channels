@@ -1,4 +1,7 @@
 CLAUDE.md
 *.o
+*.d
+*.a
 a.out
-*.dSYM/Contents/Info.plist
+test_app
+*.dSYM
